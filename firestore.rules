@@ -1,0 +1,51 @@
+rules_version = '2';
+
+// Reglas de seguridad para la web de clases particulares.
+// Sustituye PEGA_AQUI_TU_UID por tu UID (paso 2 de la GUIA.md). Mantén las comillas.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function esProfe() {
+      return request.auth != null && request.auth.uid == "PEGA_AQUI_TU_UID";
+    }
+    function conectado() {
+      return request.auth != null;
+    }
+
+    // Nombre, descripción, precio y horario: lo ve todo el mundo, solo lo cambia el profesor.
+    match /config/{doc} {
+      allow read: if true;
+      allow write: if esProfe();
+    }
+
+    // Horas ocupadas. Solo guardan quién la pidió, no datos personales.
+    match /huecos/{huecoId} {
+      allow read: if true;
+      // Un alumno solo puede ocupar una hora libre (create falla si ya existe)
+      // y a la vez que crea su solicitud.
+      allow create: if conectado()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.estado == "pendiente"
+        && existsAfter(/databases/$(database)/documents/solicitudes/$(request.resource.data.reqId));
+      allow update: if esProfe();
+      // El profesor libera horas; el alumno puede liberar la suya al anular.
+      allow delete: if esProfe() || (conectado() && resource.data.uid == request.auth.uid);
+    }
+
+    // Solicitudes con los datos del alumno: solo las ven el propio alumno y el profesor.
+    match /solicitudes/{solId} {
+      allow read: if esProfe() || (conectado() && resource.data.alumnoUid == request.auth.uid);
+      allow create: if conectado()
+        && request.resource.data.alumnoUid == request.auth.uid
+        && request.resource.data.estado == "pendiente"
+        && getAfter(/databases/$(database)/documents/huecos/$(request.resource.data.slotId)).data.reqId == solId;
+      // El profesor responde; el alumno solo puede anular la suya.
+      allow update: if esProfe()
+        || (conectado()
+            && resource.data.alumnoUid == request.auth.uid
+            && request.resource.data.estado == "anulada"
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["estado"]));
+      allow delete: if false;
+    }
+  }
+}
