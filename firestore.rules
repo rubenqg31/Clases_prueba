@@ -6,7 +6,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function esProfe() {
-      return request.auth != null && request.auth.uid == "PEGA_AQUI_TU_UID";
+      return request.auth != null && request.auth.uid == "uyOFGxm7pmObMEJ6FCK608FwFO63";
     }
     function conectado() {
       return request.auth != null;
